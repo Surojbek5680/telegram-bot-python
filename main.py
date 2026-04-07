@@ -1,44 +1,36 @@
-import os
-import time
 import telebot
-from dotenv import load_dotenv
-from commands import register_commands
+import google.generativeai as genai
 
-# Load environment variables
-load_dotenv()
+# 1. Bot tokeningizni kiriting (BotFather'dan olasiz)
+TELEGRAM_TOKEN = '8615541607:AAFmP_J5t0eLczXhcPIBlOQpNF9326Esjqs'
 
-# Replace 'TELEGRAM_BOT_TOKEN' with the token you received from BotFather
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-try:
-    bot = telebot.TeleBot(TOKEN)
-    register_commands(bot)
+# 2. Google Gemini API kalitini kiriting (aistudio.google.com dan olasiz)
+GEMINI_API_KEY = 'AIzaSyDkEnep7mBJSp9Oucu_AO18fHZ0sYFAzDc'
 
-    @bot.message_handler(commands=['start', 'hello'])
-    def send_welcome(message):
-        """
-        Handle '/start' and '/hello' commands.
+# Gemini-ni sozlash
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
-        Args:
-            message (telebot.types.Message): The message object.
-        """
-        bot.reply_to(message, "Hello! I'm a simple Telegram bot.")
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-    @bot.message_handler(func=lambda msg: True)
-    def echo_all(message):
-        """
-        Echo all incoming text messages back to the user.
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "Salom! Men sun'iy intellektga ulangan botman. Menga xohlagan savolingizni bering!")
 
-        Args:
-            message (telebot.types.Message): The message object.
-        """
-        bot.reply_to(message, message.text)
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    try:
+        # Bot "yozmoqda..." holatini ko'rsatishi uchun
+        bot.send_chat_action(message.chat.id, 'typing')
+        
+        # Savolni Gemini-ga yuboramiz
+        response = model.generate_content(message.text)
+        
+        # Javobni foydalanuvchiga qaytaramiz
+        bot.reply_to(message, response.text)
+    except Exception as e:
+        bot.reply_to(message, "Kechirasiz, xatolik yuz berdi. Keyinroq urinib ko'ring.")
+        print(f"Xato: {e}")
 
-    # Remove webhook to avoid conflicts with polling
-    bot.delete_webhook(drop_pending_updates=True)
-    bot.polling()
-
-except Exception as e:
-    print(f"CRITICAL ERROR: Failed to initialize bot with provided token. Error: {e}")
-    print("The application will hang to prevent a restart loop. Please fix the TELEGRAM_BOT_TOKEN environment variable.")
-    while True:
-        time.sleep(3600)
+print("Bot ishga tushdi...")
+bot.polling()
